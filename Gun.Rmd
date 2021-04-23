@@ -1,0 +1,24 @@
+---
+title: "More Guns, Less Crime?"
+author: "Chenle Sun"
+date: "4/21/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dslabs)
+library(tidyverse)
+# This is the URL for the data that will be analyzed.
+urlfile <- "https://vincentarelbundock.github.io/Rdatasets/csv/AER/Guns.csv"
+# Read the data into R and name it cricketers.
+Gun <- read_csv(url(urlfile))
+```
+
+## R Markdown
+
+```{r cars}
+Gun =subset(Gun, select = -c(X1, state, law))
+round(cor(Gun),1)
+```
+
