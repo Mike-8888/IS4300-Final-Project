@@ -1,0 +1,178 @@
+---
+title: "More Guns, Less Crime?"
+author: "Chenle Sun"
+date: "4/21/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+# Guns Data Set
+
+################################################################
+# Data taken from                                              #
+# https://vincentarelbundock.github.io/Rdatasets/datasets.html #
+################################################################
+# Project Location:                                            #
+# https://github.com/Mike-8888/IS4300-Final-Project            #
+################################################################
+
+# Required Packages:
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(dslabs)) install.packages("dslabs", repos = "http://cran.us.r-project.org")
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require(ggthemes)) install.packages("ggthemes", repos = "http://cran.us.r-project.org")
+
+# This is the URL for the data that will be analyzed.
+urlfile_1 <- "https://raw.githubusercontent.com/Mike-8888/IS4300-Final-Project/main/Guns.csv"
+urlfile_2 <- "https://raw.githubusercontent.com/Mike-8888/IS4300-Final-Project/main/Gun.csv"
+
+# Read the data into R and name it G.
+G <- read_csv(url(urlfile_1))   # Original data set
+G = subset(G, select = -c(X1))
+
+Gf <- read_csv(url(urlfile_2))  # Changes variable law: yes to 1 and no to 0
+
+# Convert data set to a data frame
+Gun <- as.data.frame(G)
+Gunf <- as.data.frame(Gf)
+```
+
+## Introduction
+
+Some people believe that the crime rate in states that have enacted a shall carry law will decrease. This report will test whether this hypothesis is true by analyzing the relationship between different variables and the law. If it is not true, we will find the variables that affect the crime rate.
+
+```{r}
+head(G) #Take a look the head of data set G
+```
+
+Here is the head of the data. The data set we will use is "Guns", which contains 1,173 various data from 51 states in the United States from 1977 to 1999. The explanation of its 13 variables is as follows:
+
+state: factor indicating state.
+
+year: factor indicating year.
+
+violent: violent crime rate (incidents per 100,000 members of the population).
+
+murder: murder rate (incidents per 100,000).
+
+robbery: robbery rate (incidents per 100,000).
+
+prisoners: incarceration rate in the state in the previous year (sentenced prisoners per 100,000 residents; value for the previous year).
+
+afam: percent of state population that is African-American, ages 10 to 64.
+
+cauc: percent of state population that is Caucasian, ages 10 to 64.
+
+male: percent of state population that is male, ages 10 to 29.
+
+population: state population, in millions of people.
+
+income: real per capita personal income in the state (US dollars).
+
+density: population per square mile of land area, divided by 1,000.
+
+law: factor. Does the state have a shall carry law in effect in that year?
+
+## Visualizations
+
+Firstly, aggregating the data of each state in the United States by year, we receive the line graphs below. We can see that the robbery rate began to decline slowly after 1991, and the violent and murder rate also declined rapidly after 1993. The average time for 29 states to enact shall carry laws is 1995 (See the file: Supplement). It seems that this assumption is true.
+
+```{r}
+# Remove the non-numeric data
+Gsum = subset(Gun, select = -c(law, state))
+
+# Add up the data of 51 states each year
+Gsum <- aggregate(. ~year, data=Gsum, sum, na.rm=TRUE)
+
+# Create a line graph to show the changes of robbery and violent rate
+ggplot(Gsum, aes(x=year)) +
+  geom_line(aes(y = robbery), color = "red") +
+  geom_line(aes(y = violent), color = "blue") +
+  labs(x = "Year", y = "Counts", title = "The changes of robbery and violent 
+       rate in the U.S. from 1977 to 1999") +
+  geom_text(aes(x = 1981, y = 27000, label = "violent"), size=4) +
+  geom_text(aes(x = 1981, y = 12000, label = "robbery"), size=4) +
+  theme_clean()
+
+# Create a line graph to show the changes of murder rate
+ggplot(Gsum, aes(x=year)) +
+  geom_line(aes(y = murder), color = "black") +
+  labs(x = "Year", y = "Murder Rate", title = "The changes of murder rate in 
+       the U.S. from 1977 to 1999") +
+  theme_clean()
+```
+
+However, between 1988 and 1994, 10 states enacted shall carry laws, and all three crime rates were increasing during that time. Also, the imprisonment rate continued to rise from 1977 to 1999. Therefore, we can preliminarily conclude that the promulgation of the shall carry law cannot reduce the crime rate.
+
+```{r}
+# Create a line graph to show the changes of prisoners rate
+Gsum %>% ggplot(aes(x=year, y=prisoners)) +
+  geom_line()+
+  labs(x = "Year", y = "Prisoners rate", title = "The changes of prisoners rate in
+       the U.S. from 1977 to 1999") +
+  theme_clean()
+```
+
+## Analysis
+
+Then, this scatter chart shows the imprisonment rate of each state in each year. By using machine learning, we can conclude that 76.6% of the states with an imprisonment rate higher than 500 after 1995 have enacted shall carry law, and the specificity value reached 99.3%. This also means that legal possession of a gun will cause a higher crime rate.
+
+```{r}
+# Remove the outliers
+Gun <- Gun %>% filter(state != "District of Columbia")
+
+# Create the point plot of incarceration rate of each state from 1977 to 1999
+Gun$law <- as.factor(Gun$law)
+carPlot <- Gun %>% ggplot()
+carPlot + geom_point(aes(x=year,y=prisoners,col=law),size = 2)+
+  geom_hline(yintercept= 500)+
+  geom_vline(xintercept = 1995)+
+  labs(x = "Year", y = "Prisoners rate", title = "The changes of imprisonment rate in
+       the U.S. from 1977 to 1999") +
+  theme_clean()
+
+# Predict the probability of a state that enacts shall carry laws with an incidence rate higher than 500 after 1995
+Gun$predicted <- ifelse(Gun$prisoners < 500,"no",
+                           ifelse(Gun$year < 1995,"no",
+                                  "yes"))
+# Make a table
+T <- table(Predict = Gun$predicted,Actual = Gun$law)
+
+# Calculate the three metrics
+T <- as.vector(T)
+accuracy <- (T[1]+T[4])/(T[1]+T[2]+T[3]+T[4]) 
+sensitivity <- T[4]/(T[3]+T[4])
+specificity <- T[1]/(T[1]+T[2])
+metric <- c("Accuracy","Sensitivity","Specificity")
+value <- c(accuracy,sensitivity,specificity)
+data.frame(Metric = metric,Value = round(value,3))
+```
+
+In this correlation chart, compared with the law, there is a higher correlation between crime rate and density. It can also be seen in the following line chart that states with more land per person have lower crime rates.
+
+```{r}
+# Remove the non-numeric data
+Gunc = subset(Gunf, select = -c(state))
+
+# Convert data to numeric and create a correlation chart
+Gunc$law <- as.numeric(Gunf$law)
+round(cor(Gunc),1)
+
+# Create a line chart to show the relationship between prisoners and density
+Gsum %>% ggplot(aes(x=density, y=prisoners)) +
+  geom_line()+
+  labs(x = "Population per square mile of land area", y = "Prisoners rate", 
+  title = "The correlation between imprisonment 
+  rate and density") +
+  theme_clean()
+```
+
+## Conclusion
+
+Overall, enacting shall carry laws cannot reduce the crime rate. On the contrary, the crime rate increased after 10 states successively promulgated laws between 1988 and 1994. After 1995, 76.6% of states with imprisonment rates above 500 have implemented this law. Therefore, more guns will only cause more crime rate. 
+
+The variable with a high correlation with crime rate is density, which is population per square mile of land area. In order to reduce the crime rate, more equitable distribution of resources is the key to solving the problem.
